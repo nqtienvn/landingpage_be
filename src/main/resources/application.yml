@@ -10,6 +10,7 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD:}
       repositories:
         enabled: ${SPRING_DATA_REDIS_REPOSITORIES_ENABLED}
   servlet:
