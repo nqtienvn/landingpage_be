@@ -80,7 +80,6 @@ public class OrderService {
         }
 
         if (request.paymentMethod() == PaymentMethod.PAYOS) {
-            order.setTransferContent(order.getOrderCode());
             createPayOSPaymentLink(order);
         }
 
@@ -100,6 +99,9 @@ public class OrderService {
                 .returnUrl(payOSConfig.getReturnUrl() + "?orderCode=" + order.getOrderCode())
                 .cancelUrl(payOSConfig.getCancelUrl() + "?orderCode=" + order.getOrderCode())
                 .build();
+
+        log.info("Gui yeu cau tao link thanh toan PayOS: orderCode={}, amount={}, description={}, returnUrl={}, cancelUrl={}",
+                payosOrderCode, amountInVnd, paymentData.getDescription(), paymentData.getReturnUrl(), paymentData.getCancelUrl());
 
         try {
             CreatePaymentLinkResponse response = payOS.paymentRequests().create(paymentData);
