@@ -92,12 +92,17 @@ public class OrderService {
 
         long amountInVnd = order.getTotalAmount().setScale(0, RoundingMode.HALF_UP).longValue();
 
+        String returnUrl = payOSConfig.getReturnUrl() + "?orderCode=" + order.getOrderCode();
+        String cancelUrl = payOSConfig.getCancelUrl() + "?orderCode=" + order.getOrderCode();
+        order.setPayosReturnUrl(returnUrl);
+        order.setPayosCancelUrl(cancelUrl);
+
         CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
                 .orderCode(payosOrderCode)
                 .amount(amountInVnd)
                 .description("Thanh toan " + order.getOrderCode())
-                .returnUrl(payOSConfig.getReturnUrl() + "?orderCode=" + order.getOrderCode())
-                .cancelUrl(payOSConfig.getCancelUrl() + "?orderCode=" + order.getOrderCode())
+                .returnUrl(returnUrl)
+                .cancelUrl(cancelUrl)
                 .build();
 
         log.info("Gui yeu cau tao link thanh toan PayOS: orderCode={}, amount={}, description={}, returnUrl={}, cancelUrl={}",
