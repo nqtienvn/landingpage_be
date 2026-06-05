@@ -30,3 +30,10 @@ app:
     username: admin
     password: admin123
     email: admin@test.local
+
+payos:
+  client-id: test_client_id
+  api-key: test_api_key
+  checksum-key: test_checksum_key
+  return-url: http://localhost:5173/payment/success
+  cancel-url: http://localhost:5173/payment/cancel

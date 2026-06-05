@@ -9,6 +9,8 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, Lo
 
     Optional<CustomerOrder> findByOrderCode(String orderCode);
 
+    Optional<CustomerOrder> findByPayosOrderCode(Long payosOrderCode);
+
     List<CustomerOrder> findAllByOrderByCreatedAtDesc();
 
     List<CustomerOrder> findAllByStatusOrderByCreatedAtDesc(OrderStatus status);

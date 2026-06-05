@@ -8,17 +8,26 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import vn.com.be_landingpage.catalog.CatalogService;
 import vn.com.be_landingpage.catalog.Product;
 import vn.com.be_landingpage.catalog.ProductImage;
+import vn.com.be_landingpage.config.PayOSConfig;
 import vn.com.be_landingpage.exception.BadRequestException;
 import vn.com.be_landingpage.exception.ResourceNotFoundException;
 import vn.com.be_landingpage.media.MediaAsset;
 import vn.com.be_landingpage.media.MediaService;
+import vn.payos.PayOS;
+import vn.payos.exception.PayOSException;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+import vn.payos.model.webhooks.Webhook;
+import vn.payos.model.webhooks.WebhookData;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -29,6 +38,8 @@ public class OrderService {
     private final BankTransferConfigRepository bankTransferConfigRepository;
     private final CatalogService catalogService;
     private final MediaService mediaService;
+    private final PayOS payOS;
+    private final PayOSConfig payOSConfig;
 
     @Transactional
     public OrderDtos.OrderResponse createOrder(OrderDtos.CreateOrderRequest request) {
@@ -39,9 +50,14 @@ public class OrderService {
         order.setAddress(request.address().trim());
         order.setNote(request.note());
         order.setPaymentMethod(request.paymentMethod());
-        order.setStatus(request.paymentMethod() == PaymentMethod.BANK_TRANSFER
-                ? OrderStatus.PENDING_PAYMENT
-                : OrderStatus.PROCESSING);
+
+        if (request.paymentMethod() == PaymentMethod.PAYOS) {
+            order.setStatus(OrderStatus.PENDING_PAYMENT);
+        } else if (request.paymentMethod() == PaymentMethod.BANK_TRANSFER) {
+            order.setStatus(OrderStatus.PENDING_PAYMENT);
+        } else {
+            order.setStatus(OrderStatus.PROCESSING);
+        }
 
         BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderDtos.OrderItemRequest itemRequest : request.items()) {
@@ -63,7 +79,72 @@ public class OrderService {
             });
         }
 
+        if (request.paymentMethod() == PaymentMethod.PAYOS) {
+            order.setTransferContent(order.getOrderCode());
+            createPayOSPaymentLink(order);
+        }
+
         return OrderDtos.OrderResponse.from(orderRepository.save(order));
+    }
+
+    private void createPayOSPaymentLink(CustomerOrder order) {
+        long payosOrderCode = generatePayOSOrderCode();
+        order.setPayosOrderCode(payosOrderCode);
+
+        long amountInVnd = order.getTotalAmount().setScale(0, RoundingMode.HALF_UP).longValue();
+
+        CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
+                .orderCode(payosOrderCode)
+                .amount(amountInVnd)
+                .description("Thanh toan " + order.getOrderCode())
+                .returnUrl(payOSConfig.getReturnUrl() + "?orderCode=" + order.getOrderCode())
+                .cancelUrl(payOSConfig.getCancelUrl() + "?orderCode=" + order.getOrderCode())
+                .build();
+
+        try {
+            CreatePaymentLinkResponse response = payOS.paymentRequests().create(paymentData);
+            order.setPayosPaymentLinkId(response.getPaymentLinkId());
+            order.setPayosCheckoutUrl(response.getCheckoutUrl());
+            order.setPayosQrCode(response.getQrCode());
+            log.info("PayOS payment link created for order {}: checkoutUrl={}",
+                    order.getOrderCode(), response.getCheckoutUrl());
+        } catch (PayOSException e) {
+            log.error("Failed to create PayOS payment link for order {}: {}", order.getOrderCode(), e.getMessage());
+            throw new BadRequestException("Không thể tạo link thanh toán PayOS: " + e.getMessage());
+        }
+    }
+
+    @Transactional
+    public void handlePayOSWebhook(Webhook webhook) {
+        WebhookData data;
+        try {
+            data = payOS.webhooks().verify(webhook);
+        } catch (Exception e) {
+            log.error("PayOS webhook verification failed: {}", e.getMessage());
+            return;
+        }
+
+        if (!"00".equals(data.getCode())) {
+            log.warn("PayOS webhook received non-success code: code={}, desc={}", data.getCode(), data.getDesc());
+            return;
+        }
+
+        Long payosOrderCode = data.getOrderCode();
+        CustomerOrder order = orderRepository.findByPayosOrderCode(payosOrderCode).orElse(null);
+        if (order == null) {
+            log.warn("PayOS webhook: order not found for payosOrderCode={}", payosOrderCode);
+            return;
+        }
+
+        if (order.getStatus() == OrderStatus.PAID) {
+            log.info("PayOS webhook: order {} already paid, ignoring", order.getOrderCode());
+            return;
+        }
+
+        order.setStatus(OrderStatus.PAID);
+        order.setPaidAt(Instant.now());
+        orderRepository.save(order);
+        log.info("PayOS webhook: order {} marked as PAID", order.getOrderCode());
     }
 
     @Transactional(readOnly = true)
@@ -204,6 +285,16 @@ public class OrderService {
             }
         }
         throw new BadRequestException("Không thể tạo mã đơn hàng duy nhất, vui lòng thử lại");
+    }
+
+    private long generatePayOSOrderCode() {
+        for (int attempt = 0; attempt < 30; attempt++) {
+            long code = System.currentTimeMillis() / 1000 + RANDOM.nextInt(1000);
+            if (orderRepository.findByPayosOrderCode(code).isEmpty()) {
+                return code;
+            }
+        }
+        throw new BadRequestException("Không thể tạo mã đơn hàng PayOS duy nhất, vui lòng thử lại");
     }
 
     private BankTransferConfig bankConfig() {

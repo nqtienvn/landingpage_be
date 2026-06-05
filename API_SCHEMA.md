@@ -10,6 +10,22 @@
 - Có thể đổi bằng env: `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`.
 - Redis cache đang dùng Spring Cache abstraction. Mặc định `SPRING_CACHE_TYPE=simple`; bật Redis bằng `SPRING_CACHE_TYPE=redis`.
 
+## PayOS (Thanh toán QR)
+
+- SDK: `vn.payos:payos-java:2.0.1`
+- Doc PayOS: https://payos.vn/docs/
+- Quản lý API key tại: https://my.payos.vn
+
+Env cần cấu hình:
+
+| Biến | Mô tả |
+|---|---|
+| `PAYOS_CLIENT_ID` | Client ID từ PayOS |
+| `PAYOS_API_KEY` | API Key từ PayOS |
+| `PAYOS_CHECKSUM_KEY` | Checksum Key để verify webhook signature |
+| `PAYOS_RETURN_URL` | URL frontend chuyển về sau thanh toán thành công |
+| `PAYOS_CANCEL_URL` | URL frontend chuyển về khi khách huỷ thanh toán |
+
 ## Nhóm Entity chính
 
 - `admin_users`: tài khoản admin, password BCrypt, role `ADMIN`.
@@ -29,7 +45,7 @@
   - `product_sizes`
   - `product_images`
 - Orders:
-  - `customer_orders`
+  - `customer_orders` — thêm các cột PayOS: `payos_order_code`, `payos_payment_link_id`, `payos_checkout_url`, `payos_qr_code`
   - `order_items`
   - `bank_transfer_configs`
 
@@ -65,6 +81,17 @@ Authorization: Bearer <accessToken>
 - `POST /api/public/orders`
 - `GET /api/public/orders/{orderCode}`
 
+PaymentMethod enum: `COD`, `BANK_TRANSFER`, `PAYOS`
+
+Order response fields mới (PayOS):
+
+| Field | Type | Mô tả |
+|---|---|---|
+| `payosOrderCode` | number | Mã đơn hàng trên hệ thống PayOS |
+| `payosPaymentLinkId` | string | ID link thanh toán PayOS |
+| `payosCheckoutUrl` | string | URL trang thanh toán PayOS (redirect khách đến đây) |
+| `payosQrCode` | string | URL ảnh QR code VietQR |
+
 Ví dụ tạo đơn hàng:
 
 ```json
@@ -86,6 +113,38 @@ Ví dụ tạo đơn hàng:
 ```
 
 Nếu `paymentMethod=BANK_TRANSFER`, backend tự sinh `orderCode` dạng `DH83742`, đồng thời trả `transferContent`, `paymentQrUrl` hoặc `vietQrUrl` nếu admin đã cấu hình bank code + số tài khoản.
+
+Ví dụ tạo đơn hàng thanh toán PayOS QR:
+
+```json
+{
+  "customerName": "Nguyen Van A",
+  "phone": "0900000000",
+  "address": "Quan 1, TP.HCM",
+  "paymentMethod": "PAYOS",
+  "totalAmount": 2500000,
+  "items": [
+    {
+      "productId": 1,
+      "size": "M",
+      "quantity": 1
+    }
+  ]
+}
+```
+
+Nếu `paymentMethod=PAYOS`, backend gọi PayOS API tạo payment link, trả về các trường:
+- `payosOrderCode` (number): mã đơn hàng trên PayOS
+- `payosPaymentLinkId` (string): ID link thanh toán PayOS
+- `payosCheckoutUrl` (string): URL chuyển hướng khách hàng đến trang thanh toán PayOS
+- `payosQrCode` (string): URL ảnh QR code để quét thanh toán
+
+Luồng thanh toán PayOS:
+1. Khách chọn `PAYOS` → backend tạo link thanh toán trên PayOS
+2. Frontend redirect khách đến `payosCheckoutUrl` hoặc hiển thị `payosQrCode`
+3. Khách quét QR VietQR → thanh toán thành công
+4. PayOS gửi webhook về `POST /api/webhook/payos`
+5. Backend verify chữ ký, cập nhật đơn hàng thành `PAID`
 
 ## Admin API
 
@@ -153,6 +212,35 @@ Product request chính:
 - `GET|PUT /api/admin/payment/bank-transfer`
 - `POST /api/admin/payment/bank-transfer/qr` multipart form `file`, optional `folder`
 
+### Webhook (không cần xác thực)
+
+- `POST /api/webhook/payos`: nhận kết quả thanh toán từ PayOS
+
+Payload PayOS gửi về:
+
+```json
+{
+  "code": "00",
+  "desc": "success",
+  "success": true,
+  "data": {
+    "orderCode": 123,
+    "amount": 3000,
+    "description": "VQRIO123",
+    "accountNumber": "12345678",
+    "reference": "TF230204212323",
+    "transactionDateTime": "2023-02-04 18:25:00",
+    "currency": "VND",
+    "paymentLinkId": "124c33293c43417ab7879e14c8d9eb18",
+    "code": "00",
+    "desc": "Thành công"
+  },
+  "signature": "8d8640d802576397a1ce45ebda7f835055768ac7ad2e0bfb77f9b8f12cca4c7f"
+}
+```
+
+Backend dùng `CHECKSUM_KEY` để verify chữ ký, nếu hợp lệ cập nhật đơn hàng thành `PAID`.
+
 Trạng thái đơn hàng:
 
 - `PENDING_PAYMENT`
@@ -162,4 +250,10 @@ Trạng thái đơn hàng:
 - `SHIPPING`
 - `COMPLETED`
 - `CANCELLED`
+
+## Lưu ý PayOS Webhook
+
+- Đăng ký webhook URL trong dashboard PayOS (my.payos.vn), ví dụ: `https://your-domain.com/api/webhook/payos`
+- Endpoint `/api/webhook/**` không cần JWT, cho phép PayOS gọi về trực tiếp
+- Backend dùng `PAYOS_CHECKSUM_KEY` để verify chữ ký HMAC-SHA256 trong webhook payload
 

@@ -64,6 +64,18 @@ public class CustomerOrder extends BaseEntity {
     @Column(length = 1000)
     private String vietQrUrl;
 
+    @Column(name = "payos_order_code", unique = true)
+    private Long payosOrderCode;
+
+    @Column(name = "payos_payment_link_id", length = 100)
+    private String payosPaymentLinkId;
+
+    @Column(name = "payos_checkout_url", length = 1000)
+    private String payosCheckoutUrl;
+
+    @Column(name = "payos_qr_code", length = 1000)
+    private String payosQrCode;
+
     private Instant paidAt;
 
     @Lob
