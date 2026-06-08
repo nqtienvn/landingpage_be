@@ -22,4 +22,10 @@ public final class AuthDtos {
             String role
     ) {
     }
+
+    public record UserResponse(
+            String username,
+            String role
+    ) {
+    }
 }
