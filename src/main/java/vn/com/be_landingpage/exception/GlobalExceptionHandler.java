@@ -4,11 +4,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -45,6 +47,17 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiError.of(403, "Forbidden", "Bạn không có quyền thực hiện thao tác này", request.getRequestURI()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    ResponseEntity<ApiError> handleResponseStatus(ResponseStatusException ex, HttpServletRequest request) {
+        HttpStatusCode statusCode = ex.getStatusCode();
+        HttpStatus httpStatus = HttpStatus.resolve(statusCode.value());
+        String error = httpStatus != null ? httpStatus.getReasonPhrase() : "HTTP " + statusCode.value();
+        String message = ex.getReason() != null ? ex.getReason() : ex.getMessage();
+
+        return ResponseEntity.status(statusCode)
+                .body(ApiError.of(statusCode.value(), error, message, request.getRequestURI()));
     }
 
     @ExceptionHandler(Exception.class)
