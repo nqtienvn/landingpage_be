@@ -6,6 +6,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -155,6 +156,33 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
+    public OrderDtos.OrderStatsResponse getOrderStats() {
+        List<CustomerOrder> allOrders = orderRepository.findAll();
+        long total = allOrders.size();
+        long pending = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.PENDING_PAYMENT).count();
+        long paid = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.PAID).count();
+        long processing = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.PROCESSING).count();
+        long shipping = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.SHIPPING).count();
+        long completed = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.COMPLETED).count();
+        long cancelled = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.CANCELLED).count();
+
+        BigDecimal totalRevenue = allOrders.stream()
+                .filter(o -> o.getStatus() == OrderStatus.PAID || o.getStatus() == OrderStatus.COMPLETED)
+                .map(CustomerOrder::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Instant todayStart = Instant.now().atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                .toLocalDate().atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        BigDecimal todayRevenue = allOrders.stream()
+                .filter(o -> (o.getStatus() == OrderStatus.PAID || o.getStatus() == OrderStatus.COMPLETED)
+                        && o.getCreatedAt().isAfter(todayStart))
+                .map(CustomerOrder::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new OrderDtos.OrderStatsResponse(total, pending, paid, processing, shipping, completed, cancelled, totalRevenue, todayRevenue);
+    }
+
+    @Transactional(readOnly = true)
     public List<OrderDtos.OrderResponse> findOrders(OrderStatus status, PaymentMethod paymentMethod) {
         List<CustomerOrder> orders;
         if (status != null && paymentMethod != null) {
@@ -179,6 +207,14 @@ public class OrderService {
     public OrderDtos.OrderResponse findByCode(String orderCode) {
         return OrderDtos.OrderResponse.from(orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng code=" + orderCode)));
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderDtos.OrderResponse> findByPhone(String phone) {
+        return orderRepository.findByPhoneOrderByCreatedAtDesc(phone)
+                .stream()
+                .map(OrderDtos.OrderResponse::from)
+                .toList();
     }
 
     @Transactional
