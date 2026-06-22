@@ -1,6 +1,7 @@
 package vn.com.be_landingpage.orders;
 
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +25,11 @@ public class PublicOrderController {
     @GetMapping("/orders/{orderCode}")
     public OrderDtos.OrderResponse findByCode(@PathVariable String orderCode) {
         return orderService.findByCode(orderCode);
+    }
+
+    @GetMapping("/orders/phone/{phone}")
+    public List<OrderDtos.OrderResponse> findByPhone(@PathVariable String phone) {
+        return orderService.findByPhone(phone);
     }
 
     @GetMapping("/payment/bank-transfer")
