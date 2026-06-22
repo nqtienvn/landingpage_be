@@ -29,6 +29,10 @@ import vn.com.be_landingpage.cms.ManifestoContentRepository;
 import vn.com.be_landingpage.cms.SocialLink;
 import vn.com.be_landingpage.cms.VisualNarrativeImage;
 import vn.com.be_landingpage.cms.VisualNarrativeImageRepository;
+import vn.com.be_landingpage.orders.BankTransferConfig;
+import vn.com.be_landingpage.orders.BankTransferConfigRepository;
+import vn.com.be_landingpage.review.Review;
+import vn.com.be_landingpage.review.ReviewRepository;
 
 @Component
 @RequiredArgsConstructor
@@ -43,6 +47,9 @@ public class DataInitializer implements CommandLineRunner {
     private final FooterContentRepository footerContentRepository;
     private final CollectionChapterRepository chapterRepository;
     private final ProductRepository productRepository;
+    private final vn.com.be_landingpage.social.SocialConfigRepository socialConfigRepository;
+    private final BankTransferConfigRepository bankTransferConfigRepository;
+    private final ReviewRepository reviewRepository;
 
     @Value("${app.admin.username}")
     private String adminUsername;
@@ -59,6 +66,9 @@ public class DataInitializer implements CommandLineRunner {
         seedAdmin();
         seedCms();
         seedCatalog();
+        seedBankTransferConfig();
+        seedReviews();
+        seedSocialConfigs();
         repairMojibakeSeedData();
     }
 
@@ -100,6 +110,7 @@ public class DataInitializer implements CommandLineRunner {
             visualNarrativeImageRepository.save(visual("Runway silhouette", "World Cup 2028", "/assets/spotlight_wc28_1779910971469.png", 0));
             visualNarrativeImageRepository.save(visual("Home jersey", "Phiên bản giới hạn", "/assets/jersey_1_1779911012494.png", 1));
             visualNarrativeImageRepository.save(visual("Away jersey", "Tối giản", "/assets/jersey_3_1779911038854.png", 2));
+            visualNarrativeImageRepository.save(visual("Training kit", "Phong cách thể thao", "/assets/jersey_2_1779911026559.png", 3));
         }
 
         if (craftsmanshipContentRepository.count() == 0) {
@@ -140,6 +151,31 @@ public class DataInitializer implements CommandLineRunner {
                     created.setSortOrder(0);
                     return chapterRepository.save(created);
                 });
+
+        // Thêm 2 chapters nữa cho FE
+        if (chapterRepository.findBySlug("street-elite").isEmpty()) {
+            CollectionChapter street = new CollectionChapter();
+            street.setSlug("street-elite");
+            street.setTitle("Street Elite");
+            street.setSubtitle("Phong cách đường phố.");
+            street.setDescription("Bộ sưu tập dành cho những ai yêu thích sự tự do và cá tính trên đường phố.");
+            street.setCoverImageUrl("/assets/jersey_1_1779911012494.png");
+            street.setSortOrder(1);
+            street.setActive(true);
+            chapterRepository.save(street);
+        }
+
+        if (chapterRepository.findBySlug("midnight-series").isEmpty()) {
+            CollectionChapter midnight = new CollectionChapter();
+            midnight.setSlug("midnight-series");
+            midnight.setTitle("Midnight Series");
+            midnight.setSubtitle("Đêm xuống, phong cách lên.");
+            midnight.setDescription("Dòng sản phẩm tối giản, sang trọng cho buổi tối và sự kiện đặc biệt.");
+            midnight.setCoverImageUrl("/assets/jersey_3_1779911038854.png");
+            midnight.setSortOrder(2);
+            midnight.setActive(true);
+            chapterRepository.save(midnight);
+        }
 
         if (productRepository.count() > 0) {
             return;
@@ -191,6 +227,68 @@ public class DataInitializer implements CommandLineRunner {
         link.setSortOrder(sortOrder);
         link.setActive(true);
         return link;
+    }
+
+    private void seedBankTransferConfig() {
+        if (bankTransferConfigRepository.count() > 0) return;
+        BankTransferConfig config = new BankTransferConfig();
+        config.setBankName("Vietcombank");
+        config.setBankCode("VCB");
+        config.setAccountNumber("0123456789");
+        config.setAccountName("CONG TY TNHH BLOOMECHO");
+        config.setActive(true);
+        bankTransferConfigRepository.save(config);
+    }
+
+    private void seedReviews() {
+        if (reviewRepository.count() > 0) return;
+
+        List<Product> products = productRepository.findAll();
+        if (products.isEmpty()) return;
+
+        Product p1 = products.get(0);
+        reviewRepository.save(createReview(p1.getId(), "Minh Tuấn", 5, "Áo mặc rất thoải mái, chất liệu tốt!"));
+        reviewRepository.save(createReview(p1.getId(), "Hoàng Anh", 4, "Phom dáng đẹp, giao hàng nhanh."));
+        reviewRepository.save(createReview(p1.getId(), "Thanh Hằng", 5, "Đỉnh cao của thể thao & thời trang."));
+
+        if (products.size() > 1) {
+            Product p2 = products.get(1);
+            reviewRepository.save(createReview(p2.getId(), "Quốc Bảo", 4, "Quần đẹp, form chuẩn."));
+            reviewRepository.save(createReview(p2.getId(), "Ngọc Trâm", 5, "Mua làm quà tặng, người nhận rất thích."));
+        }
+
+        if (products.size() > 2) {
+            Product p3 = products.get(2);
+            reviewRepository.save(createReview(p3.getId(), "Văn Hùng", 5, "Áo khoác giữ ấm tốt, thiết kế cực chất."));
+            reviewRepository.save(createReview(p3.getId(), "Mai Phương", 4, "Đáng tiền, sẽ mua thêm."));
+        }
+    }
+
+    private Review createReview(Long productId, String customerName, int rating, String comment) {
+        Review review = new Review();
+        review.setProductId(productId);
+        review.setCustomerName(customerName);
+        review.setRating(rating);
+        review.setComment(comment);
+        review.setActive(true);
+        return review;
+    }
+
+    private void seedSocialConfigs() {
+        if (socialConfigRepository.count() > 0) return;
+        socialConfigRepository.save(social("instagram", "https://instagram.com/bloomecho", null, "BloomEcho Instagram", 0));
+        socialConfigRepository.save(social("facebook", "https://facebook.com/bloomecho", null, "BloomEcho Facebook", 1));
+    }
+
+    private vn.com.be_landingpage.social.SocialConfig social(String platform, String url, String imageUrl, String title, int sortOrder) {
+        vn.com.be_landingpage.social.SocialConfig config = new vn.com.be_landingpage.social.SocialConfig();
+        config.setPlatform(platform);
+        config.setUrl(url);
+        config.setImageUrl(imageUrl);
+        config.setPageTitle(title);
+        config.setSortOrder(sortOrder);
+        config.setActive(true);
+        return config;
     }
 
     private void seedProduct(CollectionChapter chapter, String slug, String name, String tag, String price, String imageUrl, int sortOrder) {

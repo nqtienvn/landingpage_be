@@ -22,6 +22,11 @@ public class AdminOrderController {
 
     private final OrderService orderService;
 
+    @GetMapping("/orders/stats")
+    public OrderDtos.OrderStatsResponse orderStats() {
+        return orderService.getOrderStats();
+    }
+
     @GetMapping("/orders")
     public List<OrderDtos.OrderResponse> orders(
             @RequestParam(value = "status", required = false) OrderStatus status,

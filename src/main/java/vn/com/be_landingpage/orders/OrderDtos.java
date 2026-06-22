@@ -136,6 +136,19 @@ public final class OrderDtos {
     ) {
     }
 
+    public record OrderStatsResponse(
+            long totalOrders,
+            long pendingPayment,
+            long paid,
+            long processing,
+            long shipping,
+            long completed,
+            long cancelled,
+            BigDecimal totalRevenue,
+            BigDecimal todayRevenue
+    ) {
+    }
+
     public record BankTransferConfigResponse(
             Long id,
             String bankName,

@@ -15,7 +15,8 @@ public final class LandingPageDtos {
             CmsDtos.CraftsmanshipResponse craftsmanship,
             CmsDtos.FooterResponse footer,
             List<CatalogDtos.ChapterResponse> chapters,
-            List<CatalogDtos.ProductResponse> products
+            List<CatalogDtos.ProductResponse> products,
+            List<vn.com.be_landingpage.review.ReviewDtos.TopReviewResponse> topReviews
     ) {
     }
 }
