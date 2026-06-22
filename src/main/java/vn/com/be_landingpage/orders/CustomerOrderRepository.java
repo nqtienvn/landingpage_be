@@ -21,4 +21,6 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, Lo
             OrderStatus status,
             PaymentMethod paymentMethod
     );
+
+    List<CustomerOrder> findByPhoneOrderByCreatedAtDesc(String phone);
 }
