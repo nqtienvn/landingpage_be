@@ -4,9 +4,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -51,14 +51,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<ApiError> handleResponseStatus(ResponseStatusException ex, HttpServletRequest request) {
-        return ResponseEntity.status(ex.getStatusCode())
-                .body(ApiError.of(ex.getStatusCode().value(), ex.getStatusCode().toString(), ex.getReason(), request.getRequestURI()));
-    }
+        HttpStatusCode statusCode = ex.getStatusCode();
+        HttpStatus httpStatus = HttpStatus.resolve(statusCode.value());
+        String error = httpStatus != null ? httpStatus.getReasonPhrase() : "HTTP " + statusCode.value();
+        String message = ex.getReason() != null ? ex.getReason() : ex.getMessage();
 
-    @ExceptionHandler(AuthenticationException.class)
-    ResponseEntity<ApiError> handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiError.of(401, "Unauthorized", ex.getMessage(), request.getRequestURI()));
+        return ResponseEntity.status(statusCode)
+                .body(ApiError.of(statusCode.value(), error, message, request.getRequestURI()));
     }
 
     @ExceptionHandler(Exception.class)

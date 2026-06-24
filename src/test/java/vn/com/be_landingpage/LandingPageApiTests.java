@@ -45,6 +45,15 @@ class LandingPageApiTests {
     }
 
     @Test
+    void authMeWithoutLoginReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.error").value("Unauthorized"))
+                .andExpect(jsonPath("$.message").value("Chưa đăng nhập"));
+    }
+
+    @Test
     void publicCanCreateCodOrder() throws Exception {
         mockMvc.perform(post("/api/public/orders")
                         .contentType(MediaType.APPLICATION_JSON)
