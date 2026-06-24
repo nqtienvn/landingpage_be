@@ -52,7 +52,7 @@ public class OrderService {
         order.setPaymentMethod(request.paymentMethod());
 
         if (request.paymentMethod() == PaymentMethod.PAYOS) {
-            order.setStatus(OrderStatus.PENDING_PAYMENT);
+            order.setStatus(OrderStatus.COMPLETED);
         } else if (request.paymentMethod() == PaymentMethod.BANK_TRANSFER) {
             order.setStatus(OrderStatus.PENDING_PAYMENT);
         } else {
