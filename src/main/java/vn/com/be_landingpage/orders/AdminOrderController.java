@@ -35,17 +35,17 @@ public class AdminOrderController {
         return orderService.findOrders(status, paymentMethod);
     }
 
-    @GetMapping("/orders/{id}")
-    public OrderDtos.OrderResponse order(@PathVariable Long id) {
-        return orderService.findById(id);
-    }
-
     @GetMapping("/orders/code/{orderCode}")
     public OrderDtos.OrderResponse orderByCode(@PathVariable String orderCode) {
         return orderService.findByCode(orderCode);
     }
 
-    @PatchMapping("/orders/{id}/status")
+    @GetMapping("/orders/{id:\\d+}")
+    public OrderDtos.OrderResponse order(@PathVariable Long id) {
+        return orderService.findById(id);
+    }
+
+    @PatchMapping("/orders/{id:\\d+}/status")
     public OrderDtos.OrderResponse updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody OrderDtos.UpdateOrderStatusRequest request
