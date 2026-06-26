@@ -2,8 +2,6 @@ package vn.com.be_landingpage.orders;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -53,8 +51,6 @@ public class OrderService {
         order.setPaymentMethod(request.paymentMethod());
 
         if (request.paymentMethod() == PaymentMethod.PAYOS) {
-            order.setStatus(OrderStatus.COMPLETED);
-        } else if (request.paymentMethod() == PaymentMethod.BANK_TRANSFER) {
             order.setStatus(OrderStatus.PENDING_PAYMENT);
         } else {
             order.setStatus(OrderStatus.PROCESSING);
@@ -69,16 +65,6 @@ public class OrderService {
         order.setSubtotal(subtotal);
         order.setTotalAmount(subtotal);
         validateTotalAmount(request.totalAmount(), subtotal);
-
-        if (request.paymentMethod() == PaymentMethod.BANK_TRANSFER) {
-            String transferContent = order.getOrderCode();
-            BigDecimal finalSubtotal = subtotal;
-            order.setTransferContent(transferContent);
-            bankTransferConfigRepository.findFirstByActiveTrueOrderByIdAsc().ifPresent(config -> {
-                order.setPaymentQrUrl(config.getQrImageUrl());
-                order.setVietQrUrl(buildVietQrUrl(config, finalSubtotal, transferContent));
-            });
-        }
 
         if (request.paymentMethod() == PaymentMethod.PAYOS) {
             createPayOSPaymentLink(order);
@@ -346,28 +332,4 @@ public class OrderService {
                 .orElseGet(() -> bankTransferConfigRepository.save(new BankTransferConfig()));
     }
 
-    private String buildVietQrUrl(BankTransferConfig config, BigDecimal amount, String transferContent) {
-        if (config.getBankCode() == null || config.getBankCode().isBlank()
-                || config.getAccountNumber() == null || config.getAccountNumber().isBlank()) {
-            return null;
-        }
-        String bankCode = encode(config.getBankCode().trim());
-        String accountNumber = encode(config.getAccountNumber().trim());
-        String amountValue = amount.setScale(0, RoundingMode.HALF_UP).toPlainString();
-        String addInfo = encode(transferContent);
-        String accountName = config.getAccountName() == null ? "" : "&accountName=" + encode(config.getAccountName());
-        return "https://img.vietqr.io/image/"
-                + bankCode
-                + "-"
-                + accountNumber
-                + "-compact2.png?amount="
-                + amountValue
-                + "&addInfo="
-                + addInfo
-                + accountName;
-    }
-
-    private String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
-    }
 }
