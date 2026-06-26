@@ -27,6 +27,11 @@ public class PublicOrderController {
         return orderService.findByCode(orderCode);
     }
 
+    @PostMapping("/orders/{orderCode}/payos/sync")
+    public OrderDtos.OrderResponse syncPayOSPaymentStatus(@PathVariable String orderCode) {
+        return orderService.syncPayOSPaymentStatus(orderCode);
+    }
+
     @GetMapping("/orders/phone/{phone}")
     public List<OrderDtos.OrderResponse> findByPhone(@PathVariable String phone) {
         return orderService.findByPhone(phone);

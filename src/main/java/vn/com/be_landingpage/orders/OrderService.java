@@ -23,6 +23,8 @@ import vn.payos.PayOS;
 import vn.payos.exception.PayOSException;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+import vn.payos.model.v2.paymentRequests.PaymentLink;
+import vn.payos.model.v2.paymentRequests.PaymentLinkStatus;
 import vn.payos.model.webhooks.Webhook;
 import vn.payos.model.webhooks.WebhookData;
 
@@ -135,10 +137,43 @@ public class OrderService {
             return;
         }
 
-        order.setStatus(OrderStatus.PAID);
-        order.setPaidAt(Instant.now());
+        markOrderPaid(order);
         orderRepository.save(order);
         log.info("PayOS webhook: order {} marked as PAID", order.getOrderCode());
+    }
+
+    @Transactional
+    public OrderDtos.OrderResponse syncPayOSPaymentStatus(String orderCode) {
+        CustomerOrder order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng code=" + orderCode));
+
+        if (order.getPaymentMethod() != PaymentMethod.PAYOS || order.getStatus() == OrderStatus.PAID) {
+            return OrderDtos.OrderResponse.from(order);
+        }
+
+        if (order.getPayosOrderCode() == null) {
+            throw new BadRequestException("Đơn hàng chưa có mã thanh toán PayOS");
+        }
+
+        try {
+            PaymentLink paymentLink = payOS.paymentRequests().get(order.getPayosOrderCode());
+            PaymentLinkStatus status = paymentLink.getStatus();
+            log.info("PayOS sync: order={}, payosOrderCode={}, status={}",
+                    order.getOrderCode(), order.getPayosOrderCode(), status);
+
+            if (status == PaymentLinkStatus.PAID) {
+                markOrderPaid(order);
+            } else if (status == PaymentLinkStatus.CANCELLED
+                    || status == PaymentLinkStatus.EXPIRED
+                    || status == PaymentLinkStatus.FAILED) {
+                order.setStatus(OrderStatus.CANCELLED);
+            }
+
+            return OrderDtos.OrderResponse.from(orderRepository.save(order));
+        } catch (PayOSException e) {
+            log.error("PayOS sync failed for order {}: {}", order.getOrderCode(), e.getMessage());
+            throw new BadRequestException("Không thể đồng bộ trạng thái PayOS: " + e.getMessage());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -304,6 +339,13 @@ public class OrderService {
                 .or(() -> product.getImages().stream().findFirst())
                 .map(ProductImage::getImageUrl)
                 .orElse(null);
+    }
+
+    private void markOrderPaid(CustomerOrder order) {
+        order.setStatus(OrderStatus.PAID);
+        if (order.getPaidAt() == null) {
+            order.setPaidAt(Instant.now());
+        }
     }
 
     private String generateOrderCode() {
