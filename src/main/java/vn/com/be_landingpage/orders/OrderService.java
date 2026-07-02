@@ -8,6 +8,8 @@ import java.time.ZoneId;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -178,42 +180,48 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public OrderDtos.OrderStatsResponse getOrderStats() {
-        List<CustomerOrder> allOrders = orderRepository.findAll();
-        long total = allOrders.size();
-        long pending = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.PENDING_PAYMENT).count();
-        long paid = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.PAID).count();
-        long processing = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.PROCESSING).count();
-        long shipping = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.SHIPPING).count();
-        long completed = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.COMPLETED).count();
-        long cancelled = allOrders.stream().filter(o -> o.getStatus() == OrderStatus.CANCELLED).count();
-
-        BigDecimal totalRevenue = allOrders.stream()
-                .filter(o -> o.getStatus() == OrderStatus.PAID || o.getStatus() == OrderStatus.COMPLETED)
-                .map(CustomerOrder::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         Instant todayStart = Instant.now().atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
                 .toLocalDate().atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
-        BigDecimal todayRevenue = allOrders.stream()
-                .filter(o -> (o.getStatus() == OrderStatus.PAID || o.getStatus() == OrderStatus.COMPLETED)
-                        && o.getCreatedAt().isAfter(todayStart))
-                .map(CustomerOrder::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<OrderStatus> revenueStatuses = List.of(OrderStatus.PAID, OrderStatus.COMPLETED);
 
-        return new OrderDtos.OrderStatsResponse(total, pending, paid, processing, shipping, completed, cancelled, totalRevenue, todayRevenue);
+        return new OrderDtos.OrderStatsResponse(
+                orderRepository.count(),
+                orderRepository.countByStatus(OrderStatus.PENDING_PAYMENT),
+                orderRepository.countByStatus(OrderStatus.PAID),
+                orderRepository.countByStatus(OrderStatus.PROCESSING),
+                orderRepository.countByStatus(OrderStatus.SHIPPING),
+                orderRepository.countByStatus(OrderStatus.COMPLETED),
+                orderRepository.countByStatus(OrderStatus.CANCELLED),
+                orderRepository.sumTotalAmountByStatusIn(revenueStatuses),
+                orderRepository.sumTotalAmountByStatusInAndCreatedAtAfter(revenueStatuses, todayStart)
+        );
     }
 
     @Transactional(readOnly = true)
     public List<OrderDtos.OrderResponse> findOrders(OrderStatus status, PaymentMethod paymentMethod) {
+        return findOrders(status, paymentMethod, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderDtos.OrderResponse> findOrders(OrderStatus status, PaymentMethod paymentMethod, Integer limit) {
+        Pageable pageable = limit != null && limit > 0 ? PageRequest.of(0, Math.min(limit, 200)) : null;
         List<CustomerOrder> orders;
         if (status != null && paymentMethod != null) {
-            orders = orderRepository.findAllByStatusAndPaymentMethodOrderByCreatedAtDesc(status, paymentMethod);
+            orders = pageable == null
+                    ? orderRepository.findAllByStatusAndPaymentMethodOrderByCreatedAtDesc(status, paymentMethod)
+                    : orderRepository.findAllByStatusAndPaymentMethodOrderByCreatedAtDesc(status, paymentMethod, pageable);
         } else if (status != null) {
-            orders = orderRepository.findAllByStatusOrderByCreatedAtDesc(status);
+            orders = pageable == null
+                    ? orderRepository.findAllByStatusOrderByCreatedAtDesc(status)
+                    : orderRepository.findAllByStatusOrderByCreatedAtDesc(status, pageable);
         } else if (paymentMethod != null) {
-            orders = orderRepository.findAllByPaymentMethodOrderByCreatedAtDesc(paymentMethod);
+            orders = pageable == null
+                    ? orderRepository.findAllByPaymentMethodOrderByCreatedAtDesc(paymentMethod)
+                    : orderRepository.findAllByPaymentMethodOrderByCreatedAtDesc(paymentMethod, pageable);
         } else {
-            orders = orderRepository.findAllByOrderByCreatedAtDesc();
+            orders = pageable == null
+                    ? orderRepository.findAllByOrderByCreatedAtDesc()
+                    : orderRepository.findAllByOrderByCreatedAtDesc(pageable);
         }
         return orders.stream().map(OrderDtos.OrderResponse::from).toList();
     }

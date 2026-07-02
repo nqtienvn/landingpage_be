@@ -31,6 +31,7 @@ public class CatalogService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "chapters", key = "'admin'")
     public List<CatalogDtos.ChapterResponse> getAdminChapters() {
         return chapterRepository.findAllByOrderBySortOrderAscIdAsc().stream()
                 .map(CatalogDtos.ChapterResponse::from)
@@ -71,6 +72,7 @@ public class CatalogService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "products", key = "'admin'")
     public List<CatalogDtos.ProductResponse> getAdminProducts() {
         return productRepository.findAllByOrderBySortOrderAscIdAsc().stream()
                 .map(CatalogDtos.ProductResponse::from)

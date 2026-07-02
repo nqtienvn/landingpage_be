@@ -3,6 +3,7 @@ package vn.com.be_landingpage.config;
 import java.time.Duration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,7 +15,9 @@ import org.springframework.data.redis.serializer.RedisSerializationContext;
 public class CacheConfig {
 
     @Bean
-    RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer() {
+    RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer(
+            @Value("${spring.cache.redis.time-to-live:10m}") Duration ttl
+    ) {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.activateDefaultTyping(
@@ -26,7 +29,7 @@ public class CacheConfig {
         GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(objectMapper);
 
         return builder -> builder.cacheDefaults(RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(10))
+                .entryTtl(ttl)
                 .disableCachingNullValues()
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer)));
     }

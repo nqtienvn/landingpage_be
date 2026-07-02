@@ -30,9 +30,10 @@ public class AdminOrderController {
     @GetMapping("/orders")
     public List<OrderDtos.OrderResponse> orders(
             @RequestParam(value = "status", required = false) OrderStatus status,
-            @RequestParam(value = "paymentMethod", required = false) PaymentMethod paymentMethod
+            @RequestParam(value = "paymentMethod", required = false) PaymentMethod paymentMethod,
+            @RequestParam(value = "limit", required = false) Integer limit
     ) {
-        return orderService.findOrders(status, paymentMethod);
+        return orderService.findOrders(status, paymentMethod, limit);
     }
 
     @GetMapping("/orders/code/{orderCode}")
