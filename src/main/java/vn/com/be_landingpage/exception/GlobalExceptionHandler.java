@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -18,13 +19,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+        return json(HttpStatus.NOT_FOUND)
                 .body(ApiError.of(404, "Not Found", ex.getMessage(), request.getRequestURI()));
     }
 
     @ExceptionHandler(BadRequestException.class)
     ResponseEntity<ApiError> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        return json(HttpStatus.BAD_REQUEST)
                 .body(ApiError.of(400, "Bad Request", ex.getMessage(), request.getRequestURI()));
     }
 
@@ -33,7 +34,7 @@ public class GlobalExceptionHandler {
         Map<String, String> fields = new LinkedHashMap<>();
         ex.getBindingResult().getFieldErrors()
                 .forEach(error -> fields.put(error.getField(), error.getDefaultMessage()));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        return json(HttpStatus.BAD_REQUEST)
                 .body(new ApiError(
                         java.time.Instant.now(),
                         400,
@@ -46,13 +47,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        return json(HttpStatus.FORBIDDEN)
                 .body(ApiError.of(403, "Forbidden", "Bạn không có quyền thực hiện thao tác này", request.getRequestURI()));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+        return json(HttpStatus.UNAUTHORIZED)
                 .body(ApiError.of(401, "Unauthorized", "Tên đăng nhập hoặc mật khẩu không đúng", request.getRequestURI()));
     }
 
@@ -63,13 +64,17 @@ public class GlobalExceptionHandler {
         String error = httpStatus != null ? httpStatus.getReasonPhrase() : "HTTP " + statusCode.value();
         String message = ex.getReason() != null ? ex.getReason() : ex.getMessage();
 
-        return ResponseEntity.status(statusCode)
+        return json(statusCode)
                 .body(ApiError.of(statusCode.value(), error, message, request.getRequestURI()));
     }
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiError> handleUnknown(Exception ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        return json(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiError.of(500, "Internal Server Error", ex.getMessage(), request.getRequestURI()));
+    }
+
+    private ResponseEntity.BodyBuilder json(HttpStatusCode statusCode) {
+        return ResponseEntity.status(statusCode).contentType(MediaType.APPLICATION_JSON);
     }
 }
